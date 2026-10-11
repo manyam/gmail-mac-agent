@@ -1,0 +1,11 @@
+# Core Google API dependencies for Gmail OAuth & querying
+google-api-python-client>=2.140.0
+google-auth-httplib2>=0.2.0
+google-auth-oauthlib>=1.2.0
+
+# HTML parsing & email sanitization
+beautifulsoup4>=4.12.0
+
+# Configuration & HTTP requests
+pyyaml>=6.0.1
+requests>=2.31.0

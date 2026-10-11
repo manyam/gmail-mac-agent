@@ -1,0 +1,45 @@
+# Gmail Local Agent Configuration
+
+gmail:
+  # Specific Gmail labels to filter. Examples: ["INBOX"], ["INBOX", "IMPORTANT"], ["Work", "Projects"]
+  labels:
+    - "INBOX"
+
+  # Optional additional query filters (applied alongside labels)
+  # Standard Gmail search syntax: -category:promotions -category:social -category:spam
+  additional_query: "-category:promotions -category:social -category:spam"
+
+  # Time window to look back (in hours, e.g. 24 for daily, 48 for weekend catch-up)
+  lookback_hours: 24
+
+  # Maximum number of threads to process per daily run
+  max_threads: 35
+
+  # Paths for OAuth credentials and token storage (expands ~)
+  credentials_path: "~/.gmail_agent/credentials.json"
+  token_path: "~/.gmail_agent/token.json"
+  state_db_path: "~/.gmail_agent/state.db"
+
+llm:
+  # Primary LLM: Local Ollama (zero data leaves your Mac)
+  primary:
+    provider: "ollama"
+    base_url: "http://localhost:11434"
+    model: "gemma4:26b-mlx"
+    timeout_seconds: 60
+
+  # Automatic Backup LLM: Google Gemini Flash (uses GOOGLE_API_KEY from environment)
+  backup:
+    provider: "gemini"
+    model: "gemini-3.8-flash"
+    api_key_env: "GOOGLE_API_KEY"
+    timeout_seconds: 30
+
+output:
+  # Destination directory for daily brief Markdown files
+  daily_briefs_dir: "~/Documents/GmailDailyBriefs"
+
+  # Native macOS notification banner
+  notification:
+    enabled: true
+    sound: "Glass"

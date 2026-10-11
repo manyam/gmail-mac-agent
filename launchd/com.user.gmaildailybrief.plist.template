@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.gmaildailybrief</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{PYTHON_EXEC}}</string>
+        <string>{{MAIN_SCRIPT}}</string>
+    </array>
+
+    <!-- Run every day at 7:30 AM. If Mac is asleep, runs immediately upon wake. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>7</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        {{ENV_GOOGLE_API_KEY}}
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>{{LOG_DIR}}/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>{{LOG_DIR}}/stderr.log</string>
+</dict>
+</plist>
