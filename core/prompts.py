@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from .parser import ParsedEmailThread
 
 
@@ -18,19 +18,23 @@ Key Principles:
 """
 
 
-def build_daily_brief_prompt(threads: List[ParsedEmailThread]) -> str:
+def build_daily_brief_prompt(
+    threads: List[ParsedEmailThread], label: Optional[str] = None
+) -> str:
     """Builds the complete prompt with sanitized email contents."""
     today_str = datetime.now().strftime("%A, %B %d, %Y")
     now_time_str = datetime.now().strftime("%I:%M %p")
 
     threads_text = "\n\n".join(t.to_llm_text() for t in threads)
+    label_header = f" [{label}]" if label else ""
+    label_context = f" for label '{label}'" if label else ""
 
     prompt = f"""Today is {today_str} ({now_time_str}).
-Analyze the following {len(threads)} email threads and generate the Daily Brief.
+Analyze the following {len(threads)} email threads{label_context} and generate the Daily Brief.
 
 Follow this exact Markdown format:
 
-# 📬 Daily Brief — {today_str}
+# 📬 Daily Brief{label_header} — {today_str}
 *Generated at {now_time_str} • {len(threads)} active threads analyzed*
 
 ---
@@ -63,6 +67,7 @@ Follow this exact Markdown format:
 ---
 ### 📊 Quick Stats
 - Total Threads Analyzed: {len(threads)}
+{f"- Label: {label}" if label else ""}
 
 === EMAIL THREAD DATA TO ANALYZE ===
 {threads_text}

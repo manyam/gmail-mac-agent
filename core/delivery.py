@@ -13,17 +13,34 @@ class DeliveryManager:
         self.notification_enabled = notification_enabled
         self.sound = sound
 
-    def save_brief(self, brief_content: str, provider_meta: str) -> Path:
-        """Saves daily brief markdown file to the designated directory."""
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+    @staticmethod
+    def sanitize_label(label: str) -> str:
+        """Sanitizes label name for use as a directory name."""
+        clean = label.strip()
+        for ch in [':', '*', '?', '"', '<', '>', '|', '\\']:
+            clean = clean.replace(ch, '_')
+        clean = clean.strip('/').replace('..', '_')
+        return clean or "default"
+
+    def save_brief(
+        self, brief_content: str, provider_meta: str, label: Optional[str] = None
+    ) -> Path:
+        """Saves daily brief markdown file to designated directory or label subdirectory."""
+        if label:
+            safe_label = self.sanitize_label(label)
+            target_dir = self.output_dir / safe_label
+        else:
+            target_dir = self.output_dir
+
+        target_dir.mkdir(parents=True, exist_ok=True)
 
         date_slug = datetime.now().strftime("%Y-%m-%d")
-        file_path = self.output_dir / f"Daily_Brief_{date_slug}.md"
+        file_path = target_dir / f"Daily_Brief_{date_slug}.md"
 
         # If a file already exists today, append a run timestamp
         if file_path.exists():
             time_slug = datetime.now().strftime("%H%M")
-            file_path = self.output_dir / f"Daily_Brief_{date_slug}_{time_slug}.md"
+            file_path = target_dir / f"Daily_Brief_{date_slug}_{time_slug}.md"
 
         full_content = (
             f"{brief_content}\n\n"

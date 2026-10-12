@@ -4,7 +4,7 @@ A privacy-first personal AI agent for macOS that reads your Gmail using specific
 
 - **Primary Intelligence**: 100% On-Device & Private via **Ollama** (`gemma4:26b-mlx`). Zero email text leaves your laptop.
 - **Automatic Fallback**: **Google Gemini Flash** (`gemini-3.8-flash`) via `$GOOGLE_API_KEY` if Ollama is paused or busy.
-- **Delivery**: Formatted Markdown in `~/Documents/GmailDailyBriefs/` + native macOS notification banner.
+- **Delivery**: Formatted Markdown per label in `~/Documents/GmailDailyBriefs/<label>/` + native macOS notification banner.
 - **Scheduling**: Native macOS `launchd` daemon (handles Mac sleep/wake seamlessly).
 - **Security**: Strictly read-only OAuth scope (`gmail.readonly`), deduplicated in local SQLite cache.
 
@@ -102,9 +102,9 @@ python3 main.py --hours 48
 python3 main.py --force
 ```
 
-Generated briefs are stored in:
+Generated briefs are stored in label subdirectories:
 ```bash
-~/Documents/GmailDailyBriefs/Daily_Brief_YYYY-MM-DD.md
+~/Documents/GmailDailyBriefs/<label>/Daily_Brief_YYYY-MM-DD.md
 ```
 
 ---

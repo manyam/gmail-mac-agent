@@ -85,8 +85,20 @@ def run_pipeline(config, force: bool = False, dry_run: bool = False):
     from core.prompts import build_daily_brief_prompt
     from core.state import StateManager
 
+    labels = config.gmail.labels if config.gmail.labels else ["INBOX"]
+    # Deduplicate while preserving order
+    seen = set()
+    unique_labels = []
+    for lbl in labels:
+        clean_lbl = lbl.strip()
+        if clean_lbl and clean_lbl not in seen:
+            seen.add(clean_lbl)
+            unique_labels.append(clean_lbl)
+    if not unique_labels:
+        unique_labels = ["INBOX"]
+
     print(f"=== Starting Gmail Daily Brief Run ===")
-    print(f"Labels Filtered: {config.gmail.labels}")
+    print(f"Labels Filtered: {unique_labels}")
     print(f"Output Directory: {config.output.daily_briefs_dir}")
 
     # 1. Initialize core components
@@ -103,50 +115,75 @@ def run_pipeline(config, force: bool = False, dry_run: bool = False):
     )
     llm_client = LLMClient(config.llm_primary, config.llm_backup)
 
-    # 2. Query and retrieve email threads
-    parsed_threads = gmail_client.fetch_threads(state_manager=state_mgr, force=force)
+    total_threads_count = 0
+    saved_briefs = []
 
-    if not parsed_threads:
-        msg = "No new unread or unprocessed email threads found for your filter criteria."
-        print(f"[INFO] {msg}")
-        delivery_mgr.notify_macos(msg, title="Gmail Agent: Up to Date")
-        return
+    # 2. Process each label individually (one brief file per label in its own sub directory)
+    for label in unique_labels:
+        print(f"\n--- Processing Label: {label} ---")
+        parsed_threads = gmail_client.fetch_threads(
+            state_manager=state_mgr, force=force, label=label
+        )
 
-    print(f"[INFO] Successfully parsed {len(parsed_threads)} threads.")
+        if not parsed_threads:
+            print(f"[INFO] No new threads found for label '{label}'.")
+            continue
 
-    # 3. Dry run mode exit
+        print(f"[INFO] Found {len(parsed_threads)} threads for label '{label}'.")
+        total_threads_count += len(parsed_threads)
+
+        if dry_run:
+            print(f"--- DRY RUN SUMMARY FOR [{label}] ---")
+            for i, t in enumerate(parsed_threads, 1):
+                print(f"{i}. [{t.latest_date}] {t.subject} (From: {', '.join(t.participants)})")
+            continue
+
+        # Generate prompt for this label & synthesize brief
+        prompt = build_daily_brief_prompt(parsed_threads, label=label)
+        print(f"[INFO] Synthesizing brief for [{label}] with LLM ({len(prompt)} prompt characters)...")
+
+        brief_text, provider_meta = llm_client.generate(prompt)
+
+        # Save markdown brief to sub directory of label
+        saved_path = delivery_mgr.save_brief(brief_text, provider_meta, label=label)
+        saved_briefs.append((label, saved_path, provider_meta))
+
+        # Record processed threads in state DB scoped to this label
+        for t in parsed_threads:
+            state_mgr.mark_processed(
+                thread_id=t.thread_id,
+                history_id=t.history_id or "digest",
+                message_count=len(t.messages),
+                label=label,
+            )
+
+        print("\n" + "=" * 60)
+        print(f"BRIEF FOR LABEL [{label}]:")
+        print("=" * 60)
+        print(brief_text)
+        print("=" * 60)
+        print(f"[DONE] Brief for [{label}] written to: {saved_path}\n")
+
     if dry_run:
-        print("\n--- DRY RUN SUMMARY ---")
-        for i, t in enumerate(parsed_threads, 1):
-            print(f"{i}. [{t.latest_date}] {t.subject} (From: {', '.join(t.participants)})")
         print("\n[INFO] Dry run complete. No LLM calls made.")
         return
 
-    # 4. Generate prompt & synthesize brief
-    prompt = build_daily_brief_prompt(parsed_threads)
-    print(f"[INFO] Synthesizing brief with LLM ({len(prompt)} prompt characters)...")
+    if not saved_briefs:
+        msg = "No new unread or unprocessed email threads found for your filter criteria."
+        print(f"\n[INFO] {msg}")
+        delivery_mgr.notify_macos(msg, title="Gmail Agent: Up to Date")
+        return
 
-    brief_text, provider_meta = llm_client.generate(prompt)
-
-    # 5. Save markdown brief to ~/Documents/GmailDailyBriefs/
-    saved_path = delivery_mgr.save_brief(brief_text, provider_meta)
-
-    # 6. Record processed threads in state DB
-    for t in parsed_threads:
-        state_mgr.mark_processed(
-            thread_id=t.thread_id,
-            history_id="digest",
-            message_count=len(t.messages),
-        )
-
-    # 7. Send macOS notification banner
-    notif_msg = f"{len(parsed_threads)} threads digested via {provider_meta}."
-    delivery_mgr.notify_macos(notif_msg, title="☀️ Morning Brief Ready")
+    # Send consolidated macOS notification banner
+    labels_summary = ", ".join(lbl for lbl, _, _ in saved_briefs)
+    notif_msg = f"{total_threads_count} threads digested across {len(saved_briefs)} label(s): {labels_summary}."
+    delivery_mgr.notify_macos(notif_msg, title="☀️ Morning Briefs Ready")
 
     print("\n" + "=" * 60)
-    print(brief_text)
+    print("SUMMARY OF GENERATED BRIEFS:")
+    for lbl, path, meta in saved_briefs:
+        print(f"  • [{lbl}]: {path} ({meta})")
     print("=" * 60)
-    print(f"\n[DONE] Brief written to: {saved_path}")
 
 
 def main():
