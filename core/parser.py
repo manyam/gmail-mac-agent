@@ -26,6 +26,7 @@ class ParsedEmailThread:
     latest_date: str
     web_link: str
     messages: List[ParsedEmailMessage]
+    history_id: str = ""
 
     def to_llm_text(self) -> str:
         """Converts thread into a clean conversational transcript for the LLM."""
@@ -74,6 +75,8 @@ class EmailParser:
                     subject = h.get("value", "(No Subject)")
                     break
 
+        history_id = str(raw_thread.get("historyId", ""))
+
         return ParsedEmailThread(
             thread_id=thread_id,
             subject=subject,
@@ -81,6 +84,7 @@ class EmailParser:
             latest_date=latest_date,
             web_link=web_link,
             messages=parsed_messages,
+            history_id=history_id,
         )
 
     @staticmethod

@@ -1,5 +1,5 @@
 import math
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from googleapiclient.discovery import build
 
 from .auth import GmailAuthManager
@@ -29,10 +29,20 @@ class GmailClient:
 
         # 1. Label constraints
         if labels:
-            if len(labels) == 1:
-                query_parts.append(f"label:{labels[0]}")
-            else:
-                label_clause = " OR ".join(f"label:{lbl}" for lbl in labels)
+            formatted_labels = []
+            for lbl in labels:
+                lbl_clean = lbl.strip()
+                if not lbl_clean:
+                    continue
+                if " " in lbl_clean and not (lbl_clean.startswith('"') and lbl_clean.endswith('"')):
+                    formatted_labels.append(f'label:"{lbl_clean}"')
+                else:
+                    formatted_labels.append(f"label:{lbl_clean}")
+
+            if len(formatted_labels) == 1:
+                query_parts.append(formatted_labels[0])
+            elif len(formatted_labels) > 1:
+                label_clause = " OR ".join(formatted_labels)
                 query_parts.append(f"({label_clause})")
 
         # 2. Time constraint (Gmail supports newer_than:1d / 2d etc.)
@@ -46,11 +56,12 @@ class GmailClient:
         return " ".join(query_parts)
 
     def fetch_threads(
-        self, state_manager: StateManager, force: bool = False
+        self, state_manager: StateManager, force: bool = False, label: Optional[str] = None
     ) -> List[ParsedEmailThread]:
         """Queries and parses recent email threads, skipping previously processed ones."""
+        target_labels = [label] if label else self.config.labels
         query = self.build_query(
-            self.config.labels,
+            target_labels,
             self.config.additional_query,
             self.config.lookback_hours,
         )
@@ -70,7 +81,9 @@ class GmailClient:
             return []
 
         # Filter out already digested threads
-        threads_to_process = state_manager.filter_unseen_threads(raw_threads_meta, force=force)
+        threads_to_process = state_manager.filter_unseen_threads(
+            raw_threads_meta, force=force, label=label
+        )
         print(f"[INFO] Threads to process after deduplication: {len(threads_to_process)}")
 
         parsed_threads: List[ParsedEmailThread] = []

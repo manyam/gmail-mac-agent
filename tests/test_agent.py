@@ -118,6 +118,53 @@ class TestGmailAgent(unittest.TestCase):
         client._call_ollama.assert_called_once()
         client._call_gemini.assert_called_once()
 
+    def test_delivery_label_subdirectories(self):
+        output_dir = Path(self.test_dir) / "briefs"
+        delivery_mgr = DeliveryManager(output_dir, notification_enabled=False)
+
+        brief_text = "# Daily Brief\n- Test label brief content."
+        saved_file = delivery_mgr.save_brief(brief_text, "Ollama", label="INBOX")
+
+        self.assertTrue(saved_file.exists())
+        self.assertEqual(saved_file.parent.name, "INBOX")
+        self.assertEqual(saved_file.parent.parent, output_dir)
+        self.assertIn("Daily_Brief_", saved_file.name)
+
+        # Test another label
+        saved_work = delivery_mgr.save_brief(brief_text, "Ollama", label="Work")
+        self.assertTrue(saved_work.exists())
+        self.assertEqual(saved_work.parent.name, "Work")
+
+    def test_state_manager_label_scoping(self):
+        db_path = Path(self.test_dir) / "state.db"
+        state_mgr = StateManager(db_path)
+
+        # Mark thread_1 processed for INBOX only
+        state_mgr.mark_processed("thread_1", "hist_1", 2, label="INBOX")
+
+        # Should be processed for INBOX
+        self.assertTrue(state_mgr.is_processed("thread_1", "hist_1", 2, label="INBOX"))
+        # Should NOT be processed for Work
+        self.assertFalse(state_mgr.is_processed("thread_1", "hist_1", 2, label="Work"))
+
+        # Filter unseen threads check
+        meta = [{"id": "thread_1", "historyId": "hist_1"}]
+        self.assertEqual(len(state_mgr.filter_unseen_threads(meta, label="INBOX")), 0)
+        self.assertEqual(len(state_mgr.filter_unseen_threads(meta, label="Work")), 1)
+
+    def test_prompt_builder_with_label(self):
+        thread = ParsedEmailThread(
+            thread_id="thread_xyz",
+            subject="Invoice Received",
+            participants=["Billing <billing@corp.com>"],
+            latest_date="12 Oct 2026",
+            web_link="https://mail.google.com/mail/u/0/#all/thread_xyz",
+            messages=[],
+        )
+        prompt = build_daily_brief_prompt([thread], label="Finance")
+        self.assertIn("Daily Brief [Finance]", prompt)
+        self.assertIn("Label: Finance", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()
